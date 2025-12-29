@@ -11,7 +11,7 @@ try:
     api_key = st.secrets["GOOGLE_API_KEY"]
     genai.configure(api_key=api_key)
 except Exception:
-    st.error("⚠️ 未检测到 API Key，请联系管理员在后台配置 Secrets。")
+    st.error("⚠️ 未检测到 API Key，请联系系统管理员在后台配置 Secrets。")
     st.stop()
 
 # 3. 定义你的“超级提示词” (在这里修改你的指令)
@@ -38,8 +38,9 @@ if st.button("🚀 开始分析"):
     else:
         with st.spinner('AI 正在思考中...'):
             try:
-                # 调用 Gemini 模型
-                model = genai.GenerativeModel('gemini-1.5-flash') 
+                # 调用 Gemini 模型 (这里已修正为 pro)
+                model = genai.GenerativeModel('gemini-pro')
+                
                 # 组合提示词
                 full_prompt = f"{SYSTEM_PROMPT}\n\nUser Input:\n{user_input}"
                 
@@ -48,4 +49,4 @@ if st.button("🚀 开始分析"):
                 st.markdown(response.text)
                 
             except Exception as e:
-                st.error(f"发生错误，请检查网络或Key: {e}")
+                st.error(f"发生错误: {e}")
