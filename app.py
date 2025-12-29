@@ -4,74 +4,76 @@ import google.generativeai as genai
 # ==========================================
 # 1. 核心配置
 # ==========================================
-st.set_page_config(page_title="外贸数字指挥官 (智能版)", page_icon="🧠", layout="wide")
+st.set_page_config(page_title="外贸数字指挥官 (稳健版)", page_icon="🛡️", layout="wide")
 
 try:
     api_key = st.secrets["GOOGLE_API_KEY"]
     genai.configure(api_key=api_key)
 except Exception:
-    st.error("⚠️ 未检测到 API Key，请在 Streamlit 后台 Secrets 里配置。")
+    st.error("⚠️ 未检测到 API Key，请在 Streamlit 后台配置。")
     st.stop()
 
 # ==========================================
-# 2. 动态模型搜索 (核心修复)
+# 2. 模型选择 (精准锁定 1.5 Pro)
 # ==========================================
 @st.cache_resource
-def get_best_available_model():
+def get_safe_model_name():
     try:
-        # 1. 获取你账号里所有真实存在的模型
-        all_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+        # 获取列表
+        all_models = [m.name for m in genai.list_models()]
         
-        # 2. 定义搜索优先级：先找 Pro，再找 Flash
-        # 你的账号里可能有 gemini-1.5-pro, gemini-2.0-pro 等等，我们只认 "pro"
-        pro_candidates = [m for m in all_models if 'pro' in m.lower()]
-        flash_candidates = [m for m in all_models if 'flash' in m.lower()]
+        # ⚠️ 关键逻辑：按照优先级去找，而不是随便找
+        # 1. 第一顺位：Gemini 1.5 Pro (目前最强且免费额度稳定的)
+        if "models/gemini-1.5-pro" in all_models:
+            return "models/gemini-1.5-pro"
         
-        # 3. 决策
-        if pro_candidates:
-            # 找到了 Pro！直接用列表里的第一个（通常是最新版）
-            return pro_candidates[0]
-        elif flash_candidates:
-            # 没 Pro，但在你之前的截图里证明你有 2.5-flash，那就用它
-            return flash_candidates[0]
-        elif all_models:
-            # 实在不行，随便拿一个能用的
-            return all_models[0]
-        else:
-            return "models/gemini-pro" # 最后的救命稻草
+        # 2. 第二顺位：Gemini 1.5 Pro Latest (备选)
+        if "models/gemini-1.5-pro-latest" in all_models:
+            return "models/gemini-1.5-pro-latest"
             
-    except Exception as e:
-        return "models/gemini-pro"
+        # 3. 第三顺位：Gemini 1.0 Pro (老款稳定版)
+        if "models/gemini-pro" in all_models:
+            return "models/gemini-pro"
+            
+        # 4. 保底：Flash (速度快，一定能用)
+        return "models/gemini-1.5-flash"
+        
+    except Exception:
+        return "models/gemini-1.5-flash"
 
-# 获取那个唯一正确的模型名字
-valid_model_name = get_best_available_model()
+# 获取选定的模型
+target_model = get_safe_model_name()
 
 # ==========================================
-# 3. 侧边栏
+# 3. 智能调用函数 (带自动急救包)
+# ==========================================
+def ask_gemini_safe(prompt):
+    try:
+        # 尝试使用选定的 Pro 模型
+        model = genai.GenerativeModel(target_model)
+        return model.generate_content(prompt)
+    except Exception as e:
+        # 🚨 能够捕获 429 限流错误或其他错误
+        # 如果 Pro 报错，立刻切 Flash 进行急救，不再显示红框报错
+        st.toast(f"⚠️ Pro 模型繁忙，已自动无缝切换至 Flash 极速通道。", icon="⚡")
+        fallback_model = genai.GenerativeModel("models/gemini-1.5-flash")
+        return fallback_model.generate_content(prompt)
+
+# ==========================================
+# 4. 侧边栏
 # ==========================================
 st.sidebar.title("🚀 指挥官控制台")
 app_mode = st.sidebar.radio("任务选择：", ["📧 询盘深度分析", "🕵️‍♂️ 客户背景侦探"])
 st.sidebar.markdown("---")
-
-# 显示当前到底连上了哪个大神
-if "pro" in valid_model_name.lower():
-    st.sidebar.success(f"🧠 深度思考模式 (Pro)\n引擎: `{valid_model_name}`")
-else:
-    st.sidebar.info(f"⚡ 极速响应模式\n引擎: `{valid_model_name}`")
+st.sidebar.info(f"🛡️ 当前主力引擎: `{target_model}`\n(自带自动降级保护)")
 
 # ==========================================
-# 4. 通用调用函数
-# ==========================================
-def ask_gemini(prompt):
-    model = genai.GenerativeModel(valid_model_name)
-    return model.generate_content(prompt)
-
-# ==========================================
-# 5. 功能一：询盘深度分析
+# 5. 功能一：询盘分析
 # ==========================================
 if app_mode == "📧 询盘深度分析":
     st.title("📧 深度询盘分析")
-    
+    st.caption("优先使用 Pro 模型进行深度思考，遇阻自动切换。")
+
     INTENT_PROMPT = """
     You are a Senior Cross-border E-commerce Sales Director.
     Analyze the user input deeply. Output a structured report:
@@ -91,13 +93,13 @@ if app_mode == "📧 询盘深度分析":
         if not user_input:
             st.warning("请输入内容")
         else:
-            with st.spinner(f'AI ({valid_model_name}) 正在思考...'):
+            with st.spinner('AI 正在深度思考中...'):
                 try:
-                    response = ask_gemini(f"{INTENT_PROMPT}\n\nUser Input:\n{user_input}")
+                    response = ask_gemini_safe(f"{INTENT_PROMPT}\n\nUser Input:\n{user_input}")
                     st.success("分析完成！")
                     st.markdown(response.text)
                 except Exception as e:
-                    st.error(f"发生错误: {e}")
+                    st.error(f"最终错误: {e}")
 
 # ==========================================
 # 6. 功能二：客户背调
@@ -120,10 +122,10 @@ elif app_mode == "🕵️‍♂️ 客户背景侦探":
         if not bg_input:
             st.warning("请粘贴文本")
         else:
-            with st.spinner(f'侦探 ({valid_model_name}) 正在分析...'):
+            with st.spinner('侦探正在分析...'):
                 try:
-                    response = ask_gemini(f"{INVESTIGATOR_PROMPT}\n\nClient Text:\n{bg_input}")
+                    response = ask_gemini_safe(f"{INVESTIGATOR_PROMPT}\n\nClient Text:\n{bg_input}")
                     st.success("报告已生成！")
                     st.markdown(response.text)
                 except Exception as e:
-                    st.error(f"发生错误: {e}")
+                    st.error(f"最终错误: {e}")
