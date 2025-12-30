@@ -6,7 +6,7 @@ import json
 # ==========================================
 # 1. 核心配置
 # ==========================================
-st.set_page_config(page_title="外贸数字指挥官 (全链路转化版)", page_icon="🦁", layout="wide")
+st.set_page_config(page_title="外贸数字指挥官 (双引擎版)", page_icon="🦁", layout="wide")
 
 try:
     api_key = st.secrets["GOOGLE_API_KEY"]
@@ -16,29 +16,28 @@ except Exception:
     st.stop()
 
 # ==========================================
-# 2. 模型锁定
-# ==========================================
-@st.cache_resource
-def get_working_model_name():
-    return "models/gemini-2.5-flash"
-
-valid_model_name = get_working_model_name()
-
-# ==========================================
-# 3. 侧边栏
+# 2. 侧边栏 & 模型选择 (⭐ 核心升级)
 # ==========================================
 st.sidebar.title("🦁 指挥官控制台")
+
+# 新增：手动切换模型，防止一个被限流导致全挂
+model_choice = st.sidebar.selectbox(
+    "⚙️ 切换 AI 引擎 (报错时请换一个):",
+    ["models/gemini-2.5-flash", "models/gemini-1.5-flash", "models/gemini-1.5-pro"]
+)
+
+st.sidebar.success(f"🚀 当前引擎: `{model_choice}`")
+st.sidebar.markdown("---")
+
 app_mode = st.sidebar.radio("任务选择：", [
     "📧 询盘深度分析", 
     "🕵️‍♂️ 粘贴文本背调 (稳)", 
     "🌐 全网情报深挖 (联网版)",
-    "⛔ 谈判与异议粉碎 (新!)"  # <--- 新增的选项
+    "⛔ 谈判与异议粉碎 (新!)"
 ])
-st.sidebar.markdown("---")
-st.sidebar.success(f"🚀 引擎在线: `{valid_model_name}`")
 
 # ==========================================
-# 4. 功能逻辑
+# 3. 功能逻辑
 # ==========================================
 
 # --- 功能一：询盘分析 ---
@@ -51,7 +50,7 @@ if app_mode == "📧 询盘深度分析":
         else:
             with st.spinner('AI 正在分析...'):
                 try:
-                    model = genai.GenerativeModel(valid_model_name)
+                    model = genai.GenerativeModel(model_choice) # 使用你选的模型
                     PROMPT = "Act as Sales Manager. Analyze email. Output: Language, Intent, Score, Advice, Draft Response."
                     response = model.generate_content(f"{PROMPT}\nInput: {user_input}")
                     st.markdown(response.text)
@@ -68,7 +67,7 @@ elif app_mode == "🕵️‍♂️ 粘贴文本背调 (稳)":
         else:
             with st.spinner('侦探正在分析...'):
                 try:
-                    model = genai.GenerativeModel(valid_model_name)
+                    model = genai.GenerativeModel(model_choice) # 使用你选的模型
                     PROMPT = "Analyze company text. Output: Identity, Scale, Pain Points, Pitch Strategy."
                     response = model.generate_content(f"{PROMPT}\nText: {bg_input}")
                     st.markdown(response.text)
@@ -86,7 +85,7 @@ elif app_mode == "🌐 全网情报深挖 (联网版)":
         else:
             with st.spinner('正在全网搜集情报...'):
                 try:
-                    url = f"https://generativelanguage.googleapis.com/v1beta/{valid_model_name}:generateContent?key={api_key}"
+                    url = f"https://generativelanguage.googleapis.com/v1beta/{model_choice}:generateContent?key={api_key}"
                     payload = {
                         "contents": [{
                             "parts": [{
@@ -112,56 +111,34 @@ elif app_mode == "🌐 全网情报深挖 (联网版)":
                             except: pass
                             st.markdown(answer)
                         except: st.error("数据解析失败")
-                    else: st.error(f"请求失败 {response.status_code}")
+                    else: st.error(f"请求失败 {response.status_code}\n{response.text}")
                 except Exception as e: st.error(f"错误: {e}")
 
-# --- 功能四：谈判与异议粉碎 (⭐ 新增功能) ---
+# --- 功能四：谈判与异议粉碎 ---
 elif app_mode == "⛔ 谈判与异议粉碎 (新!)":
     st.title("⛔ B2B 谈判与异议粉碎机")
-    st.info("💡 场景：客户回复了 '价格太贵'、'MOQ太高' 或 '已有供应商'。让 AI 教你如何优雅回击。")
     
     col1, col2 = st.columns(2)
     with col1:
-        objection = st.text_input("客户的拒绝理由 (Objection):", placeholder="例如：Your price is 20% higher than my current supplier.")
+        objection = st.text_input("客户的拒绝理由:", placeholder="例如：Price is too high.")
     with col2:
-        my_product = st.text_input("我的产品/优势 (可选):", placeholder="例如：We use 304 stainless steel, 2-year warranty.")
+        my_product = st.text_input("我的优势:", placeholder="例如：High quality, 2 year warranty.")
         
     if st.button("💣 生成谈判策略"):
         if not objection:
-            st.warning("请至少输入客户的拒绝理由！")
+            st.warning("请输入客户的拒绝理由")
         else:
-            with st.spinner('谈判专家正在构思话术...'):
+            with st.spinner('谈判专家正在构思...'):
                 try:
-                    model = genai.GenerativeModel(valid_model_name)
+                    model = genai.GenerativeModel(model_choice) # 使用你选的模型
                     PROMPT = f"""
-                    You are a **World-Class B2B Sales Negotiation Coach** (Harvard Negotiation Project style).
-                    
-                    **The Situation:**
-                    * **Client Objection:** "{objection}"
-                    * **My Leverage (Context):** "{my_product}"
-                    
-                    **Your Task:**
-                    Provide 3 distinct response strategies to handle this objection. Do not just apologize or lower the price immediately.
-                    
-                    **Output Format:**
-                    
-                    ### 🛡️ Strategy 1: The "Value Pivot" (Logic & ROI focus)
-                    * **Logic:** Explain why the price is higher based on value/ROI.
-                    * **Script (English):** [Draft email text]
-                    
-                    ### 🤝 Strategy 2: The "Empathy & Probe" (Psychological focus)
-                    * **Logic:** Acknowledge their concern and ask a question to uncover the *real* blocker.
-                    * **Script (English):** [Draft email text]
-                    
-                    ### 🔪 Strategy 3: The "Alternative Option" (Downsell/Unbundle)
-                    * **Logic:** Offer a way to meet their price target by removing non-essential features/services.
-                    * **Script (English):** [Draft email text]
-                    
-                    ---
-                    **💡 Pro Tip:** One sentence advice on how to close this deal.
+                    You are a B2B Sales Negotiation Coach.
+                    Objection: "{objection}"
+                    My Context: "{my_product}"
+                    Provide 3 strategies (Value Pivot, Empathy, Alternative) with email scripts.
                     """
-                    
                     response = model.generate_content(PROMPT)
                     st.markdown(response.text)
                 except Exception as e:
                     st.error(f"出错: {e}")
+                    st.caption("💡 提示：如果显示 429 Quota Exceeded，请在左侧侧边栏切换另一个模型试试！")
