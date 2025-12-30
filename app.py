@@ -1,11 +1,10 @@
 import streamlit as st
 import google.generativeai as genai
-from google.generativeai.types import HarmCategory, HarmBlockThreshold
 
 # ==========================================
 # 1. 核心配置
 # ==========================================
-st.set_page_config(page_title="外贸数字指挥官 (联网终极版)", page_icon="🌍", layout="wide")
+st.set_page_config(page_title="外贸数字指挥官 (联网修复版)", page_icon="🌍", layout="wide")
 
 try:
     api_key = st.secrets["GOOGLE_API_KEY"]
@@ -19,11 +18,11 @@ except Exception:
 # ==========================================
 @st.cache_resource
 def find_working_model():
+    # 既然你之前的截图证明 2.5-flash 能用，我们把它放第一位
     candidates = [
-        "models/gemini-2.5-flash",    # 你的主力王牌
+        "models/gemini-2.5-flash",    
         "models/gemini-1.5-pro",
         "models/gemini-1.5-flash",
-        "models/gemini-pro",
     ]
     for model_name in candidates:
         try:
@@ -43,20 +42,13 @@ if not valid_model_name:
     st.stop()
 
 # ==========================================
-# 3. 联网搜索工具配置 (Search Tool)
+# 3. 联网搜索工具配置 (修复重点!)
 # ==========================================
-# 只有在用户选择联网模式时，我们才尝试加载这个工具
 def get_search_model():
     try:
-        # 尝试开启 Google Search 工具
-        tools = [
-            {"google_search_retrieval": {
-                "dynamic_retrieval_config": {
-                    "mode": "dynamic",
-                    "dynamic_threshold": 0.3,
-                }
-            }}
-        ]
+        # ⚠️ 修复：根据报错提示，改用最简单的 'google_search' 声明
+        # 不再使用复杂的 google_search_retrieval 字典
+        tools = [{"google_search": {}}] 
         return genai.GenerativeModel(valid_model_name, tools=tools)
     except Exception:
         return None
@@ -68,7 +60,7 @@ st.sidebar.title("🌍 指挥官控制台")
 app_mode = st.sidebar.radio("任务选择：", [
     "📧 询盘深度分析", 
     "🕵️‍♂️ 粘贴文本背调 (稳)", 
-    "🌐 全网背景深挖 (联网版)"  # <--- 新增的功能
+    "🌐 全网背景深挖 (联网版)" 
 ])
 st.sidebar.markdown("---")
 st.sidebar.success(f"🚀 引擎在线: `{valid_model_name}`")
@@ -118,51 +110,48 @@ elif app_mode == "🕵️‍♂️ 粘贴文本背调 (稳)":
                 except Exception as e:
                     st.error(f"出错: {e}")
 
-# --- 功能三：全网深挖 (新!) ---
+# --- 功能三：全网深挖 (联网!) ---
 elif app_mode == "🌐 全网背景深挖 (联网版)":
     st.title("🌐 全网背景深挖 (Google Search)")
-    st.caption("⚠️ 注意：此功能需要调用 Google 搜索权限。如果报错，说明你的免费账号暂不支持此功能。")
+    st.info("💡 提示：此功能通过 Google Search 获取最新信息。")
     
-    search_query = st.text_input("输入客户公司名 或 网址：", placeholder="例如：Ningbo ABC Trading Co., Ltd")
+    search_query = st.text_input("输入客户公司名：", placeholder="例如：Costco Wholesale")
     
     if st.button("🌍 联网搜索分析"):
         if not search_query:
             st.warning("请输入公司名！")
         else:
-            with st.spinner('正在连接 Google Search 检索全网信息...'):
+            with st.spinner('正在连接 Google 搜索互联网...'):
                 try:
-                    # 获取带搜索功能的模型
                     search_model = get_search_model()
                     if not search_model:
-                        st.error("你的账号似乎不支持联网搜索组件。请使用功能二。")
+                        st.error("无法加载搜索工具。")
                     else:
-                        # 专门的联网提示词
                         SEARCH_PROMPT = f"""
-                        Please use Google Search to find detailed information about this company: "{search_query}".
+                        Search Google for "{search_query}" to generate a B2B investigation report.
                         
-                        Write a "Company Investigation Report" including:
-                        1. **Business Type:** What exactly do they do? (Distributor? Retailer? Contractor?)
-                        2. **Key Products:** What are they selling?
-                        3. **Location & Scale:** Where are they? Do they look big?
-                        4. **Latest News/Activity:** Any recent projects or news found?
-                        5. **Website Summary:** Brief summary of their homepage if found.
-                        
-                        If you cannot find specific info, state "Not Found".
+                        Include:
+                        1. **Company Overview:** What do they do? (Distributor/Retailer?)
+                        2. **Key Products/Services:**
+                        3. **Size & Location:**
+                        4. **Latest News:** Any recent projects?
+                        5. **Website:** Their official URL if found.
                         """
                         
+                        # 这里的 key 改得非常简单，直接发 prompt，让工具自己跑
                         response = search_model.generate_content(SEARCH_PROMPT)
                         
-                        # 检查有没有用到搜索
+                        # 尝试显示引用来源
                         try:
-                            grounding_metadata = response.candidates[0].grounding_metadata
-                            if grounding_metadata.search_entry_point:
-                                st.info("✅ 已成功调用 Google 搜索数据")
-                                st.markdown(grounding_metadata.search_entry_point.rendered_content)
+                            grounding = response.candidates[0].grounding_metadata
+                            if grounding.search_entry_point:
+                                st.success("✅ 数据来源：Google Search")
+                                st.markdown(grounding.search_entry_point.rendered_content)
                         except:
                             pass
                             
                         st.markdown(response.text)
                         
                 except Exception as e:
-                    st.error(f"联网搜索失败: {e}")
-                    st.warning("原因可能是：免费 API Key 额度不支持搜索，或网络超时。建议使用'功能二'手动复制文本。")
+                    st.error(f"出错: {e}")
+                    st.caption("如果还是报错 400，说明 2.5-flash 模型暂时还不支持免费 API 进行搜索。请使用功能二。")
