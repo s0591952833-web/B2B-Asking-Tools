@@ -5,6 +5,7 @@ import google.generativeai as genai
 # 1. 核心配置与 API 连接
 # ==========================================
 st.set_page_config(page_title="外贸数字指挥官 (终极诊断版)", page_icon="🦁", layout="wide")
+st.error(f"🔍 当前 Google 库版本: {genai.__version__}")
 
 try:
     api_key = st.secrets["GOOGLE_API_KEY"]
