@@ -6,7 +6,7 @@ import json
 # ==========================================
 # 1. 核心配置
 # ==========================================
-st.set_page_config(page_title="外贸数字指挥官 (深度情报版)", page_icon="🕵️", layout="wide")
+st.set_page_config(page_title="外贸数字指挥官 (全链路转化版)", page_icon="🦁", layout="wide")
 
 try:
     api_key = st.secrets["GOOGLE_API_KEY"]
@@ -16,7 +16,7 @@ except Exception:
     st.stop()
 
 # ==========================================
-# 2. 模型锁定 (直接用 2.5-flash)
+# 2. 模型锁定
 # ==========================================
 @st.cache_resource
 def get_working_model_name():
@@ -31,7 +31,8 @@ st.sidebar.title("🦁 指挥官控制台")
 app_mode = st.sidebar.radio("任务选择：", [
     "📧 询盘深度分析", 
     "🕵️‍♂️ 粘贴文本背调 (稳)", 
-    "🌐 全网情报深挖 (联网版)" 
+    "🌐 全网情报深挖 (联网版)",
+    "⛔ 谈判与异议粉碎 (新!)"  # <--- 新增的选项
 ])
 st.sidebar.markdown("---")
 st.sidebar.success(f"🚀 引擎在线: `{valid_model_name}`")
@@ -74,83 +75,93 @@ elif app_mode == "🕵️‍♂️ 粘贴文本背调 (稳)":
                 except Exception as e:
                     st.error(f"出错: {e}")
 
-# --- 功能三：全网深挖 (⭐ 深度情报版) ---
+# --- 功能三：全网深挖 ---
 elif app_mode == "🌐 全网情报深挖 (联网版)":
     st.title("🌐 全网深度商业情报 (Google Search)")
-    st.info("💡 现在的 AI 已经变身为‘商业侦探’，它会尝试挖掘战略、痛点和竞争对手。")
-    
     search_query = st.text_input("输入客户公司名：", placeholder="例如：Costco Wholesale")
     
     if st.button("🌍 启动深度挖掘"):
         if not search_query:
             st.warning("请输入公司名！")
         else:
-            with st.spinner('正在全网搜集情报并进行商业推理...'):
+            with st.spinner('正在全网搜集情报...'):
                 try:
                     url = f"https://generativelanguage.googleapis.com/v1beta/{valid_model_name}:generateContent?key={api_key}"
-                    
-                    # 构造深度分析的指令
                     payload = {
                         "contents": [{
                             "parts": [{
                                 "text": f"""
-                                I want you to act as a **Senior B2B Market Intelligence Analyst**. 
-                                Your goal is not just to summarize basic info, but to dig for **sales opportunities**.
-                                
-                                Please use Google Search to investigate this company: "{search_query}".
-                                
-                                Produce a **"Deep-Dive Intelligence Report"** containing:
-
-                                1.  **🏢 Business DNA Check:**
-                                    * **Real Identity:** Are they a Manufacturer, Distributor, Wholesaler, or Retailer? (Verify this carefully)
-                                    * **Market Position:** Are they high-end luxury, mass market, or discount?
-                                
-                                2.  **🎯 Strategic Radar (Crucial):**
-                                    * **Latest Moves:** Check recent news (last 12 months). Are they expanding? Opening new stores? Laying off people? Launching new brands?
-                                    * **Pain Points:** Based on news/reviews, what problems might they be facing? (e.g., supply chain issues, quality complaints, financial pressure?)
-                                
-                                3.  **🛒 Procurement Prediction (Guessing their needs):**
-                                    * Based on their product lines, what kind of products are they likely sourcing from China/Overseas?
-                                    * What are their likely criteria? (Price-sensitive? Quality-focused? Innovation-focused?)
-                                
-                                4.  **⚔️ Competitive Landscape:**
-                                    * Who are their main rivals? (Knowing this helps me pitch against them).
-                                
-                                5.  **⚡ Actionable Cold Email Strategy:**
-                                    * Suggest a **"Hook"** for my first email based on the news/strategy you found above. (e.g., "I saw you are expanding in Europe, maybe you need...")
-
-                                Please cite sources where possible. If info is not found, make a logical deduction based on their industry.
+                                I want you to act as a Senior B2B Market Intelligence Analyst.
+                                Search info about: "{search_query}".
+                                Report: 1. Business DNA 2. Strategic Radar (Latest News/Pain Points) 3. Procurement Prediction 4. Competitors 5. Cold Email Hook.
                                 """
                             }]
                         }],
                         "tools": [{"google_search": {}}]
                     }
-                    
                     headers = {'Content-Type': 'application/json'}
-                    
-                    # ⚠️ 注意这里：这行就是刚才报错的地方，这次我写完整了
                     response = requests.post(url, headers=headers, data=json.dumps(payload))
-                    
                     if response.status_code == 200:
                         result = response.json()
                         try:
-                            # 提取回答
                             answer = result['candidates'][0]['content']['parts'][0]['text']
-                            
-                            # 尝试显示搜索来源
                             try:
                                 grounding = result['candidates'][0]['groundingMetadata']['searchEntryPoint']['renderedContent']
-                                st.success("✅ 搜索完成，情报如下：")
+                                st.success("✅ 搜索完成")
                                 st.markdown(grounding, unsafe_allow_html=True)
-                            except:
-                                pass
-                                
+                            except: pass
                             st.markdown(answer)
-                        except KeyError:
-                            st.error("AI 搜索到了数据，但整理失败，请重试。")
-                    else:
-                        st.error(f"请求失败 (代码 {response.status_code})")
-                        st.text(response.text)
-                        
+                        except: st.error("数据解析失败")
+                    else: st.error(f"请求失败 {response.status_code}")
+                except Exception as e: st.error(f"错误: {e}")
+
+# --- 功能四：谈判与异议粉碎 (⭐ 新增功能) ---
+elif app_mode == "⛔ 谈判与异议粉碎 (新!)":
+    st.title("⛔ B2B 谈判与异议粉碎机")
+    st.info("💡 场景：客户回复了 '价格太贵'、'MOQ太高' 或 '已有供应商'。让 AI 教你如何优雅回击。")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        objection = st.text_input("客户的拒绝理由 (Objection):", placeholder="例如：Your price is 20% higher than my current supplier.")
+    with col2:
+        my_product = st.text_input("我的产品/优势 (可选):", placeholder="例如：We use 304 stainless steel, 2-year warranty.")
+        
+    if st.button("💣 生成谈判策略"):
+        if not objection:
+            st.warning("请至少输入客户的拒绝理由！")
+        else:
+            with st.spinner('谈判专家正在构思话术...'):
+                try:
+                    model = genai.GenerativeModel(valid_model_name)
+                    PROMPT = f"""
+                    You are a **World-Class B2B Sales Negotiation Coach** (Harvard Negotiation Project style).
+                    
+                    **The Situation:**
+                    * **Client Objection:** "{objection}"
+                    * **My Leverage (Context):** "{my_product}"
+                    
+                    **Your Task:**
+                    Provide 3 distinct response strategies to handle this objection. Do not just apologize or lower the price immediately.
+                    
+                    **Output Format:**
+                    
+                    ### 🛡️ Strategy 1: The "Value Pivot" (Logic & ROI focus)
+                    * **Logic:** Explain why the price is higher based on value/ROI.
+                    * **Script (English):** [Draft email text]
+                    
+                    ### 🤝 Strategy 2: The "Empathy & Probe" (Psychological focus)
+                    * **Logic:** Acknowledge their concern and ask a question to uncover the *real* blocker.
+                    * **Script (English):** [Draft email text]
+                    
+                    ### 🔪 Strategy 3: The "Alternative Option" (Downsell/Unbundle)
+                    * **Logic:** Offer a way to meet their price target by removing non-essential features/services.
+                    * **Script (English):** [Draft email text]
+                    
+                    ---
+                    **💡 Pro Tip:** One sentence advice on how to close this deal.
+                    """
+                    
+                    response = model.generate_content(PROMPT)
+                    st.markdown(response.text)
                 except Exception as e:
-                    st.error(f"发生错误: {str(e)}")
+                    st.error(f"出错: {e}")
