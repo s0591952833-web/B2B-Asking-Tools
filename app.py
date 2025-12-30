@@ -74,7 +74,7 @@ elif app_mode == "🕵️‍♂️ 粘贴文本背调 (稳)":
                 except Exception as e:
                     st.error(f"出错: {e}")
 
-# --- 功能三：全网深挖 (⭐ 升级了 Prompt 指令!) ---
+# --- 功能三：全网深挖 (⭐ 深度情报版) ---
 elif app_mode == "🌐 全网情报深挖 (联网版)":
     st.title("🌐 全网深度商业情报 (Google Search)")
     st.info("💡 现在的 AI 已经变身为‘商业侦探’，它会尝试挖掘战略、痛点和竞争对手。")
@@ -89,7 +89,7 @@ elif app_mode == "🌐 全网情报深挖 (联网版)":
                 try:
                     url = f"https://generativelanguage.googleapis.com/v1beta/{valid_model_name}:generateContent?key={api_key}"
                     
-                    # ⭐ 核心升级：这里的指令变得非常长、非常刁钻
+                    # 构造深度分析的指令
                     payload = {
                         "contents": [{
                             "parts": [{
@@ -127,4 +127,30 @@ elif app_mode == "🌐 全网情报深挖 (联网版)":
                     }
                     
                     headers = {'Content-Type': 'application/json'}
-                    response = requests.post(url, headers=headers, data=json.dumps
+                    
+                    # ⚠️ 注意这里：这行就是刚才报错的地方，这次我写完整了
+                    response = requests.post(url, headers=headers, data=json.dumps(payload))
+                    
+                    if response.status_code == 200:
+                        result = response.json()
+                        try:
+                            # 提取回答
+                            answer = result['candidates'][0]['content']['parts'][0]['text']
+                            
+                            # 尝试显示搜索来源
+                            try:
+                                grounding = result['candidates'][0]['groundingMetadata']['searchEntryPoint']['renderedContent']
+                                st.success("✅ 搜索完成，情报如下：")
+                                st.markdown(grounding, unsafe_allow_html=True)
+                            except:
+                                pass
+                                
+                            st.markdown(answer)
+                        except KeyError:
+                            st.error("AI 搜索到了数据，但整理失败，请重试。")
+                    else:
+                        st.error(f"请求失败 (代码 {response.status_code})")
+                        st.text(response.text)
+                        
+                except Exception as e:
+                    st.error(f"发生错误: {str(e)}")
