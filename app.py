@@ -9,7 +9,7 @@ import os
 # ==========================================
 # 1. 核心配置
 # ==========================================
-st.set_page_config(page_title="外贸数字指挥官 (高负载抗压版)", page_icon="🦁", layout="wide")
+st.set_page_config(page_title="外贸数字指挥官 (最终修复版)", page_icon="🦁", layout="wide")
 
 MEMORY_FILE = "b2b_kb_memory.json"
 
@@ -44,7 +44,7 @@ def clear_memory():
     if os.path.exists(MEMORY_FILE): os.remove(MEMORY_FILE)
 
 # ==========================================
-# 3. 智能引擎 (⭐ 核心升级：超级抗压逻辑)
+# 3. 智能引擎 (抗压版)
 # ==========================================
 @st.cache_resource
 def get_best_model():
@@ -53,34 +53,24 @@ def get_best_model():
 valid_model_name = get_best_model()
 
 def robust_generate(prompt, model_name):
-    """
-    升级版生成函数：
-    1. 重试次数加到 5 次
-    2. 等待时间通过 (i+1)*5 递增 (5s, 10s, 15s, 20s, 25s)
-    3. 失败后显示具体错误原因
-    """
     model = genai.GenerativeModel(model_name)
     max_retries = 5
-    last_error = ""
-    
+    last_err = ""
     for i in range(max_retries):
         try:
             response = model.generate_content(prompt)
             return response.text
         except Exception as e:
-            last_error = str(e)
-            if "429" in str(e): # 限流错误
-                wait_time = (i + 1) * 5 # 动态等待时间
-                time.sleep(wait_time) 
-                continue 
-            elif "400" in str(e): # 比如内容太长
-                 return f"❌ 请求被拒绝 (可能内容太长或含敏感词): {str(e)}"
-            else:
-                time.sleep(2) # 其他错误稍微等等再试
+            last_err = str(e)
+            if "429" in str(e):
+                time.sleep((i + 1) * 5)
                 continue
-                
-    # 如果5次都失败了，返回详细死因
-    return f"⚠️ 系统繁忙 (已重试{max_retries}次)。\n🔍 Google 拒绝原因: {last_error}\n💡 建议：请稍等1分钟后再试，或者清空部分记忆减负。"
+            elif "400" in str(e):
+                 return f"❌ 内容可能过长或违规: {str(e)}"
+            else:
+                time.sleep(2)
+                continue
+    return f"⚠️ 系统繁忙 (重试{max_retries}次失败)。原因: {last_err}"
 
 def robust_api_search(payload, model_name, api_key):
     url = f"https://generativelanguage.googleapis.com/v1beta/{model_name}:generateContent?key={api_key}"
@@ -175,24 +165,25 @@ if mem_length > 50:
     """
 
 # ==========================================
-# 6. 功能逻辑
+# 6. 功能逻辑 (已修复截断问题)
 # ==========================================
 
 # --- 询盘分析 ---
 if app_mode == MENU_OPTIONS[0]: 
     st.subheader("📧 深度询盘分析")
-    st.caption("AI 将基于【长期记忆】中的产品库生成回复。")
     user_input = st.text_area("粘贴邮件：", height=200)
-    
     if 'res_1' not in st.session_state: st.session_state.res_1 = None
     if st.button("🚀 分析邮件"):
         if user_input:
-            with st.spinner('正在调取记忆库 (如果不动是在排队，请耐心等待)...'):
-                PROMPT = f"{KB_INJECTION}\nAct as Sales Manager. Analyze email. Output: Language, Intent, Score, Advice, Draft Response."
-                st.session_state.res_1 = robust_generate(f"{PROMPT}\nInput: {user_input}", valid_model_name)
-    if st.session_state.res_1: 
-        if "⚠️" in st.session_state.res_1: st.error(st.session_state.res_1)
-        else: st.markdown(st.session_state.res_1)
+            with st.spinner('正在分析...'):
+                PROMPT = f"""
+                {KB_INJECTION}
+                Act as Sales Manager. Analyze email. 
+                Output: Language, Intent, Score, Advice, Draft Response.
+                Input: {user_input}
+                """
+                st.session_state.res_1 = robust_generate(PROMPT, valid_model_name)
+    if st.session_state.res_1: st.markdown(st.session_state.res_1)
 
 # --- 文本背调 ---
 elif app_mode == MENU_OPTIONS[1]: 
@@ -202,8 +193,11 @@ elif app_mode == MENU_OPTIONS[1]:
     if st.button("🔍 分析"):
         if bg_input:
             with st.spinner('分析中...'):
-                PROMPT = "Analyze company text. Output: Identity, Scale, Pain Points, Pitch Strategy."
-                st.session_state.res_2 = robust_generate(f"{PROMPT}\nText: {bg_input}", valid_model_name)
+                PROMPT = f"""
+                Analyze company text. Output: Identity, Scale, Pain Points, Pitch Strategy.
+                Text: {bg_input}
+                """
+                st.session_state.res_2 = robust_generate(PROMPT, valid_model_name)
     if st.session_state.res_2: st.markdown(st.session_state.res_2)
 
 # --- 全网深挖 ---
@@ -215,7 +209,10 @@ elif app_mode == MENU_OPTIONS[2]:
         if query:
             st.session_state.res_3 = None
             with st.spinner('检索中...'):
-                prompt = f"Role: Analyst. Search: '{query}'. Report: Identity, News, Procurement, Competitors, Hook."
+                prompt = f"""
+                Role: Analyst. Search: '{query}'. 
+                Report: Identity, News, Procurement, Competitors, Hook.
+                """
                 payload = {"contents": [{"parts": [{"text": prompt}]}], "tools": [{"google_search": {}}]}
                 data = robust_api_search(payload, valid_model_name, api_key)
                 if "error" in data: st.error(data["error"])
@@ -240,4 +237,29 @@ elif app_mode == MENU_OPTIONS[3]:
     if st.button("💣 生成策略"):
         if obj:
             with st.spinner('思考中...'):
-                PROMPT = f"{KB_INJECTION}\nNegotiation Coach. Objection: '{obj}'. Leverage: '{lev}'. Provide
+                # ⭐ 这里的写法改了，更安全，不容易被截断
+                PROMPT = f"""
+                {KB_INJECTION}
+                Negotiation Coach. 
+                Objection: '{obj}'
+                Leverage: '{lev}'
+                Provide 3 strategies.
+                """
+                st.session_state.res_4 = robust_generate(PROMPT, valid_model_name)
+    if st.session_state.res_4: st.markdown(st.session_state.res_4)
+
+# --- 售后 ---
+elif app_mode == MENU_OPTIONS[4]:
+    st.subheader("🛠️ 智能售后 & 问答")
+    q = st.text_input("请输入问题:")
+    if 'res_5' not in st.session_state: st.session_state.res_5 = None
+    if st.button("🤖 提问"):
+        if q:
+            with st.spinner('查询中...'):
+                PROMPT = f"""
+                {KB_INJECTION}
+                Role: Tech Support. Question: '{q}'
+                Answer strictly based on data.
+                """
+                st.session_state.res_5 = robust_generate(PROMPT, valid_model_name)
+    if st.session_state.res_5: st.markdown(st.session_state.res_5)
