@@ -284,7 +284,7 @@ inject_ai_studio_css()
 MEMORY_FILE = "b2b_kb_memory.json"
 
 try:
-    api_key = st.secrets["AIzaSyCozClIJmDdyIbL6zmiKFTeqBFDyqk2tj8"]
+    api_key = st.secrets["GOOGLE_API_KEY"]
     genai.configure(api_key=api_key)
 except Exception:
     st.error("⚠️ 系统错误：GOOGLE_API_KEY 未配置（请检查 Streamlit Secrets）")
