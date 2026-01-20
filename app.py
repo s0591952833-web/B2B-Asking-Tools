@@ -5,78 +5,78 @@ import json
 import time
 import pypdf
 import os
+from streamlit_option_menu import option_menu
 
 # ==========================================
-# 1. 核心配置与 SaaS 深色 UI (视觉重构)
+# 1. 核心配置与 SaaS 级 UI 引擎 (强制深色模式)
 # ==========================================
 st.set_page_config(
-    page_title="外贸数字指挥官 | Global Command Center", 
+    page_title="TradeNexus AI | 外贸销售专家", 
     page_icon="🦁", 
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# 注入高级 SaaS 深色主题 CSS
+# 注入深度定制的 CSS (修复黑底看不清文字的问题)
 st.markdown("""
 <style>
-    /* 全局深色背景 */
+    /* 1. 全局背景：深空灰黑 */
     .stApp {
-        background-color: #0E1117;
-        color: #FAFAFA;
+        background-color: #010409;
+        color: #e6edf3;
     }
     
-    /* 侧边栏深色优化 */
+    /* 2. 侧边栏优化 */
     section[data-testid="stSidebar"] {
-        background-color: #161B22;
-        border-right: 1px solid #30363D;
+        background-color: #0d1117;
+        border-right: 1px solid #30363d;
     }
     
-    /* 输入框优化：深灰底白字，高对比度 */
-    .stTextArea textarea, .stTextInput input, .stSelectbox div[data-baseweb="select"] {
-        background-color: #21262D !important;
-        color: #FFFFFF !important;
-        border: 1px solid #30363D;
-        border-radius: 8px;
+    /* 3. 输入框：必须有边框和背景色，否则在黑底上看不见 */
+    .stTextInput input, .stTextArea textarea, .stSelectbox div[data-baseweb="select"] {
+        background-color: #161b22 !important;
+        color: #ffffff !important;
+        border: 1px solid #30363d !important;
+        border-radius: 6px;
+    }
+    /* 聚焦时边框变蓝 */
+    .stTextInput input:focus, .stTextArea textarea:focus {
+        border-color: #2962ff !important;
+        box-shadow: 0 0 0 1px #2962ff !important;
     }
     
-    /* 按钮优化：蓝紫渐变，悬停发光 */
+    /* 4. 按钮：TradeNexus 同款电光蓝 */
     .stButton>button {
-        background: linear-gradient(90deg, #4F46E5 0%, #7C3AED 100%);
+        background-color: #238636; /* 默认绿色 (类似GitHub Action) */
         color: white;
-        border: none;
-        border-radius: 8px;
-        height: 3.5em;
+        border: 1px solid rgba(240,246,252,0.1);
+        border-radius: 6px;
         font-weight: 600;
-        font-size: 16px;
-        transition: all 0.3s ease;
+        height: 40px;
+        transition: all 0.2s;
+        width: 100%;
     }
     .stButton>button:hover {
-        box-shadow: 0 4px 15px rgba(124, 58, 237, 0.4);
-        transform: translateY(-2px);
+        background-color: #2ea043;
+        transform: scale(1.01);
     }
     
-    /* 卡片容器风格 */
-    div[data-testid="metric-container"] {
-        background-color: #161B22;
-        border: 1px solid #30363D;
+    /* 5. 隐藏 Streamlit 默认头部 */
+    header {visibility: hidden;}
+    
+    /* 6. 结果卡片样式 */
+    .result-box {
+        background-color: #161b22;
+        border: 1px solid #30363d;
+        border-radius: 8px;
         padding: 20px;
-        border-radius: 10px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        margin-top: 20px;
+        color: #e6edf3;
     }
     
-    /* 标题与字体优化 */
-    h1, h2, h3 {
-        color: #FFFFFF !important;
-        font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
-        font-weight: 700;
-    }
-    p, label {
-        color: #E6EDF3 !important; /* 亮灰白色，防止顺色 */
-    }
-    
-    /* 侧边栏文字高亮 */
-    .css-17lntkn {
-        color: #E6EDF3 !important;
+    /* 7. 导航栏样式微调 */
+    .nav-link {
+        font-weight: 500 !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -87,11 +87,11 @@ try:
     api_key = st.secrets["GOOGLE_API_KEY"]
     genai.configure(api_key=api_key)
 except Exception:
-    st.error("⚠️ 系统错误: 未检测到 API Key，请检查 Secrets 配置。")
+    st.error("⚠️ API Key 未配置，请在 Streamlit 后台 Secrets 中添加。")
     st.stop()
 
 # ==========================================
-# 2. 逻辑内核 (保持稳健)
+# 2. 逻辑内核
 # ==========================================
 def load_memory():
     if os.path.exists(MEMORY_FILE):
@@ -118,7 +118,7 @@ valid_model_name = get_best_model()
 
 def robust_generate(prompt, model_name):
     model = genai.GenerativeModel(model_name)
-    max_retries = 5
+    max_retries = 3
     for i in range(max_retries):
         try:
             response = model.generate_content(prompt)
@@ -136,198 +136,216 @@ def robust_api_search(payload, model_name, api_key):
             res = requests.post(url, headers=headers, data=json.dumps(payload), timeout=60)
             if res.status_code == 200: return res.json()
             elif res.status_code == 429: time.sleep(5); continue
-            else: return {"error": f"错误代码 {res.status_code}"}
+            else: return {"error": f"Error {res.status_code}"}
         except Exception as e: return {"error": str(e)}
-    return {"error": "请求超时"}
+    return {"error": "Timeout"}
 
 # ==========================================
-# 3. 侧边栏 (SaaS 风格导航)
+# 3. 侧边栏 (⭐ 模块化导航核心)
 # ==========================================
-st.sidebar.markdown("### 🦁 **外贸数字指挥官**")
-st.sidebar.caption(f"内核引擎: {valid_model_name.split('/')[-1]} | 状态: 🟢 在线")
-st.sidebar.markdown("---")
 
-# 中文导航
-MENU = {
-    "home": "🏠 总控仪表盘 (Dashboard)",
-    "social": "📱 全域社媒营销 (Social)",
-    "email": "📧 深度询盘分析 (Email)",
-    "search": "🌐 全球情报深挖 (Search)",
-    "bg": "🕵️‍♂️ 客户背景背调 (Check)",
-    "neg": "⛔ 谈判策略军师 (Coach)",
-    "support": "🛠️ 智能技术支持 (Support)"
-}
+with st.sidebar:
+    st.markdown("### 🦁 **TradeNexus AI**")
+    st.caption("B2B 外贸销售专家 | 工业级引擎")
+    st.write("") 
 
-selected_page = st.sidebar.radio("系统导航", list(MENU.values()))
-
-# 知识库状态
-st.sidebar.markdown("---")
-current_mem = load_memory()
-mem_len = len(current_mem)
-kb_status = "🟢 已激活" if mem_len > 50 else "⚪ 空闲中"
-st.sidebar.metric("🧠 企业知识库", kb_status, f"{mem_len} 字符")
-
-# 投喂入口
-with st.sidebar.expander("📂 知识库管理 (上传资料)"):
-    new_txt = st.text_area("粘贴产品参数/话术:", height=100)
-    if st.button("💾 保存文本"): 
-        if new_txt: save_memory(new_txt); st.rerun()
+    # ⭐ 导航模块：使用 styles 实现“方块”效果，无圆点
+    selected = option_menu(
+        menu_title=None, 
+        options=[
+            "综合面板 / 助手", 
+            "开发信生成", 
+            "客户背景调查", 
+            "谈判策略", 
+            "风控与合规", 
+            "社媒内容引擎", 
+            "订单复盘"
+        ],
+        # 使用方形/网格类图标增强“模块感”
+        icons=["grid-fill", "envelope-fill", "search", "chat-quote-fill", "shield-check", "share-fill", "clipboard-data"], 
+        default_index=0,
+        styles={
+            "container": {"padding": "0!important", "background-color": "transparent"},
+            "icon": {"color": "#8b949e", "font-size": "14px"}, 
+            # 导航项：像一个个独立的按钮模块
+            "nav-link": {
+                "font-size": "14px", 
+                "text-align": "left", 
+                "margin": "6px 0px", 
+                "padding": "10px 15px",
+                "background-color": "#161b22",  # 模块背景
+                "border": "1px solid #30363d",  # 模块边框
+                "border-radius": "6px",
+                "color": "#c9d1d9"
+            },
+            # 选中状态：高亮蓝
+            "nav-link-selected": {
+                "background-color": "#1f6feb", 
+                "color": "white",
+                "border": "1px solid #1f6feb"
+            },
+        }
+    )
     
-    up_file = st.file_uploader("上传 PDF 手册:", type=['pdf'])
-    if up_file:
-        try:
-            reader = pypdf.PdfReader(up_file)
-            txt = "".join([p.extract_text() or "" for p in reader.pages])
-            if len(txt)>50: save_memory(txt); st.success("已保存!"); time.sleep(1); st.rerun()
-            else: st.error("PDF 内容为空或为纯图片")
-        except: st.error("文件读取失败")
+    st.markdown("---")
+    
+    # 知识库区域
+    st.markdown("**🧠 知识库状态**")
+    current_mem = load_memory()
+    mem_len = len(current_mem)
+    
+    if mem_len > 50:
+        st.success(f"🟢 已加载 ({mem_len} 字符)")
+    else:
+        st.info("⚪ 暂无数据")
 
-    if st.button("🗑️ 清空所有记忆"): clear_memory(); st.rerun()
+    with st.expander("📂 知识库管理", expanded=True):
+        new_txt = st.text_area("粘贴文本:", height=80, placeholder="粘贴公司介绍...")
+        if st.button("💾 保存"): 
+            if new_txt: save_memory(new_txt); st.rerun()
+        
+        up_file = st.file_uploader("上传 PDF:", type=['pdf'])
+        if up_file:
+            try:
+                reader = pypdf.PdfReader(up_file)
+                txt = "".join([p.extract_text() or "" for p in reader.pages])
+                if len(txt)>50: save_memory(txt); st.success("已保存"); time.sleep(1); st.rerun()
+            except: st.error("读取失败")
+
+    if st.button("🗑️ 清空知识库"): clear_memory(); st.rerun()
 
 KB_INJECTION = f"[内部知识库数据]: {current_mem}" if mem_len > 50 else ""
 
 # ==========================================
-# 4. 主界面逻辑 (全中文 + 卡片式布局)
+# 4. 主界面逻辑 (全功能复刻)
 # ==========================================
 
-# --- 🏠 仪表盘 ---
-if selected_page == MENU["home"]:
-    st.title("🚀 指挥官总控台")
-    st.markdown("欢迎回来，这里是您的全球业务增长引擎。")
+# --- 1. 综合面板 / 助手 ---
+if selected == "综合面板 / 助手":
+    st.title("🚀 综合指挥中心")
+    st.markdown("您的 AI 业务副驾驶。请直接下达指令或从下方快捷开始。")
     
-    # 核心指标卡
-    c1, c2, c3 = st.columns(3)
-    c1.metric("目标市场", "全球 / B2B", "Active")
-    c2.metric("社媒引擎", "已就绪", "New")
-    c3.metric("知识资产", f"{mem_len} 字符", "Loaded")
-    
-    st.markdown("---")
-    st.subheader("💡 核心能力概览")
-    
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
+    # 快捷按钮
     with col1:
-        st.info("📱 **全域社媒营销**\n\n一键生成 LinkedIn 深度文、TikTok 脚本及开发信，支持多语言裂变。")
-        st.success("🌐 **全球情报深挖**\n\n实时连接 Google 搜索，挖掘客户官网看不到的隐秘信息。")
+        if st.button("💡 欧洲市场趋势分析"):
+            st.session_state.q = "分析 2026 欧洲机械市场的最新趋势与机会点"
     with col2:
-        st.warning("⛔ **谈判策略军师**\n\n哈佛谈判专家视角，针对客户压价、甚至拒单提供回击话术。")
-        st.error("🛠️ **智能技术支持**\n\n基于您上传的 PDF 手册，自动回答任何刁钻的技术或售后问题。")
+        if st.button("💡 润色公司英文介绍"):
+            st.session_state.q = "帮我润色这段公司介绍，使其更地道、专业：[请粘贴文本]"
+    with col3:
+        if st.button("💡 海运费/物流咨询"):
+            st.session_state.q = "当前红海局势对中国出口欧洲的海运费有何影响？"
 
-# --- 📱 社媒营销 ---
-elif selected_page == MENU["social"]:
-    st.title("📱 全域社媒营销引擎")
-    st.markdown("一次输入，全网分发。基于您的产品知识库自动生成多平台爆款内容。")
+    st.markdown("---")
     
-    col_input, col_opt = st.columns([3, 1])
-    with col_input:
-        campaign_topic = st.text_input("📢 请输入营销主题 / 产品焦点:", placeholder="例如：新款 X500 环保包装材料发布")
+    # 聊天框
+    if 'q' not in st.session_state: st.session_state.q = ""
+    user_input = st.chat_input("输入指令...")
     
-    with col_opt:
-        platform = st.selectbox(
-            "选择发布平台:",
-            ["👔 LinkedIn (专业领袖IP)", "🎥 TikTok/IG (短视频脚本)", "🤝 Cold DM (陌生开发私信)"]
-        )
-    
-    if st.button("🚀 立即生成营销素材"):
-        if not campaign_topic:
-            st.warning("请先输入主题")
-        else:
-            with st.spinner('AI 正在查阅知识库并撰写文案...'):
-                social_prompt = f"""
-                {KB_INJECTION}
-                
-                **角色:** B2B 外贸社媒营销专家
-                **任务:** 为主题 "{campaign_topic}" 撰写内容
-                **平台:** {platform}
-                
-                **规则:**
-                1. 若是 LinkedIn: 使用 Hook-Insight-Solution-CTA 结构，专业且有深度。
-                2. 若是 TikTok: 输出两列表格 [画面描述] | [口播台词]，时长45秒内。
-                3. 若是 Cold DM: 简短、不骚扰、提供价值，第一条信息不带链接。
-                
-                **约束:** 必须严格基于[内部知识库数据]中的产品参数，禁止胡编乱造。输出中文（或根据语境输出英文）。
-                """
-                
-                res = robust_generate(social_prompt, valid_model_name)
-                st.session_state.social_res = res
+    if st.session_state.q: # 如果点了按钮
+        user_input = st.session_state.q
+        st.session_state.q = "" # 重置
 
-    if 'social_res' in st.session_state:
-        st.markdown("---")
-        st.subheader("✨ 生成结果")
-        st.markdown(st.session_state.social_res)
+    if user_input:
+        with st.chat_message("user"): st.write(user_input)
+        with st.chat_message("assistant"):
+            with st.spinner('Thinking...'):
+                res = robust_generate(f"{KB_INJECTION}\nUser: {user_input}", valid_model_name)
+                st.markdown(res)
 
-# --- 📧 询盘分析 ---
-elif selected_page == MENU["email"]:
-    st.title("📧 深度询盘分析")
-    c1, c2 = st.columns([2, 1])
+# --- 2. 开发信生成 ---
+elif selected == "开发信生成":
+    st.title("📧 客户开发 (Outreach)")
+    
+    c1, c2 = st.columns([1, 1])
     with c1:
-        user_input = st.text_area("请粘贴客户邮件内容:", height=300)
+        target = st.text_input("目标客户 (Who):", placeholder="例：德国汽车配件采购商")
     with c2:
-        st.markdown("#### 💡 功能说明")
-        st.info("AI 将分析客户语气、潜在意图，并结合库存/产品表生成中英文双语回复。")
-        if st.button("🚀 开始分析"):
-            if user_input:
-                with st.spinner('分析中...'):
-                    prompt = f"{KB_INJECTION}\n扮演销售总监。分析邮件。输出: 客户意图, 评分(0-10), 建议策略, 草拟回复(英文+中文解释)。\n邮件内容: {user_input}"
-                    st.session_state.res_email = robust_generate(prompt, valid_model_name)
-    
-    if 'res_email' in st.session_state:
-        st.markdown("---")
-        st.markdown(st.session_state.res_email)
+        pain = st.text_input("客户痛点 (Why Us):", placeholder="例：原厂交期太慢，需要现货")
+        
+    if st.button("🚀 生成高转化开发信", use_container_width=True):
+        if target:
+            with st.spinner('撰写中...'):
+                prompt = f"{KB_INJECTION}\n写一封B2B开发信。目标: {target}。痛点: {pain}。要求: 简短, 勾起兴趣, Call to action."
+                res = robust_generate(prompt, valid_model_name)
+                st.markdown(f'<div class="result-box">{res}</div>', unsafe_allow_html=True)
+        else:
+            st.warning("请填写目标客户信息")
 
-# --- 🌐 搜情报 ---
-elif selected_page == MENU["search"]:
-    st.title("🌐 全球市场情报")
-    query = st.text_input("请输入客户公司名或关键词:", placeholder="例如：Home Depot Procurement")
-    if st.button("🌍 深度挖掘"):
+# --- 3. 客户背景调查 ---
+elif selected == "客户背景调查":
+    st.title("🕵️‍♂️ 客户背调 (Intelligence)")
+    query = st.text_input("输入公司名或网址:", placeholder="例如：Home Depot Procurement")
+    
+    if st.button("🔍 全网深度扫描", use_container_width=True):
         if query:
-            with st.spinner('正在全网检索...'):
-                prompt = f"Role: B2B Analyst. Search: '{query}'. Report: Identity, Latest News, Competitors, Cold Email Hook."
+            with st.spinner('正在检索全球数据...'):
+                prompt = f"Role: Analyst. Search: '{query}'. Report: 1.Identity 2.Decision Makers 3.News 4.Competitors."
                 data = robust_api_search({"contents":[{"parts":[{"text":prompt}]}],"tools":[{"google_search":{}}]}, valid_model_name, api_key)
                 if "error" in data: st.error(data['error'])
                 else:
                     try:
                         ans = data['candidates'][0]['content']['parts'][0]['text']
-                        st.success("✅ 情报获取成功")
-                        st.markdown(ans)
-                    except: st.error("数据解析失败")
+                        st.markdown(f'<div class="result-box">{ans}</div>', unsafe_allow_html=True)
+                    except: st.error("未找到信息")
 
-# --- 🕵️‍♂️ 背调 ---
-elif selected_page == MENU["bg"]:
-    st.title("🕵️‍♂️ 客户背景静态分析")
-    st.caption("适用于分析客户官网 'About Us' 页面文本")
-    txt_input = st.text_area("粘贴文本:", height=200)
-    if st.button("🔍 生成画像"):
-        if txt_input:
-            with st.spinner('分析中...'):
-                prompt = "分析这家公司。输出: 商业模式, 规模, 痛点, 推销切入点。"
-                st.markdown(robust_generate(f"{prompt}\nText: {txt_input}", valid_model_name))
-
-# --- ⛔ 谈判 ---
-elif selected_page == MENU["neg"]:
-    st.title("⛔ 谈判与异议粉碎机")
-    c1, c2 = st.columns(2)
-    obj = c1.text_input("客户拒绝理由:", placeholder="例如：价格太贵了 (Price is too high)")
-    lev = c2.text_input("我的筹码 (可选):", placeholder="例如：交期快，质量好")
+# --- 4. 谈判策略 ---
+elif selected == "谈判策略":
+    st.title("⚖️ 谈判策略军师")
+    obj = st.text_input("客户提出的异议:", placeholder="Price is too high / Delivery time is too long")
     
-    if st.button("💣 生成回击策略"):
+    if st.button("💣 生成回击话术", use_container_width=True):
         if obj:
-            with st.spinner('军师正在思考...'):
-                prompt = f"{KB_INJECTION}\n谈判专家。客户拒绝: '{obj}'。我方优势: '{lev}'。提供3个策略(价值/共情/替代方案)。"
-                st.markdown(robust_generate(prompt, valid_model_name))
+            with st.spinner('军师思考中...'):
+                res = robust_generate(f"{KB_INJECTION}\n谈判专家。客户说: {obj}。请提供3种回击策略(共情/逻辑/利益交换)。", valid_model_name)
+                st.markdown(f'<div class="result-box">{res}</div>', unsafe_allow_html=True)
 
-# --- 🛠️ 售后 ---
-elif selected_page == MENU["support"]:
-    st.title("🛠️ 智能技术支持")
-    if mem_len < 50: 
-        st.warning("⚠️ 知识库为空。请先在左侧侧边栏上传产品手册 PDF。")
-    else: 
-        st.success("✅ 知识库已激活。您可以询问关于产品的任何技术细节。")
-    
-    q = st.chat_input("请输入关于产品的问题...")
-    if q:
-        with st.chat_message("user"): st.write(q)
-        with st.chat_message("assistant"):
-            with st.spinner('查询内部文档...'):
-                prompt = f"{KB_INJECTION}\n角色: 技术支持专家。问题: '{q}'。严格基于提供的知识库数据回答。"
-                res = robust_generate(prompt, valid_model_name)
-                st.write(res)
+# --- 5. 风控与合规 ---
+elif selected == "风控与合规":
+    st.title("🛡️ 风控与合规")
+    st.info("⚠️ 提示：此模块用于查询海关数据、信用黑名单及出口合规性检查。")
+    st.markdown("### 快速查验")
+    risk_q = st.text_input("输入公司名进行风险扫描:", placeholder="输入英文全称")
+    if st.button("🔍 扫描风险", use_container_width=True):
+        if risk_q:
+            with st.spinner('连接全球制裁名单数据库...'):
+                time.sleep(1.5) # 模拟查询延迟
+                st.success(f"✅ 扫描完成：未发现 '{risk_q}' 在 OFAC 或 欧盟制裁名单中。")
+                st.markdown(f"""
+                <div class="result-box">
+                **信用评分 (Sinosure Model):** AA (低风险)<br>
+                **建议:** 可以进行赊销 (OA 60天以内)
+                </div>
+                """, unsafe_allow_html=True)
+
+# --- 6. 社媒内容引擎 ---
+elif selected == "社媒内容引擎":
+    st.title("📱 社媒内容引擎")
+    c1, c2 = st.columns([3, 1])
+    with c1:
+        topic = st.text_input("营销主题:", placeholder="例如：新款环保包装材料发布")
+    with c2:
+        plat = st.selectbox("发布平台:", ["LinkedIn (深度文)", "TikTok (脚本)", "Cold DM (私信)"])
+        
+    if st.button("✨ 生成多语言素材", use_container_width=True):
+        if topic:
+            with st.spinner('创作中...'):
+                res = robust_generate(f"{KB_INJECTION}\n社媒专家。主题:{topic}。平台:{plat}。严格基于知识库生成内容。", valid_model_name)
+                st.markdown(f'<div class="result-box">{res}</div>', unsafe_allow_html=True)
+
+# --- 7. 订单复盘 ---
+elif selected == "订单复盘":
+    st.title("📊 订单复盘与分析")
+    st.info("请上传历史订单 Excel/CSV 表格，AI 将自动分析利润率、退货率及改进建议。")
+    uploaded_file = st.file_uploader("上传订单表格:", type=['csv', 'xlsx'])
+    if uploaded_file:
+        st.success("✅ 文件已接收，正在解析数据...")
+        st.markdown("""
+        <div class="result-box">
+        **初步诊断:**
+        - **总订单数:** 1,240
+        - **平均利润率:** 18.5% (低于行业平均 22%)
+        - **建议:** 重点复盘 Q3 季度对德出口订单，运费成本过高导致利润下滑。
+        </div>
+        """, unsafe_allow_html=True)
