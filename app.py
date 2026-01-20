@@ -5,10 +5,10 @@ import json
 import time
 import pypdf
 import os
-from streamlit_option_menu import option_menu  # 引入高级导航库
+from streamlit_option_menu import option_menu
 
 # ==========================================
-# 1. 核心配置与 SaaS 深色 UI
+# 1. 核心配置与 SaaS 深色 UI (增强对比度)
 # ==========================================
 st.set_page_config(
     page_title="外贸数字指挥官 | Global Command Center", 
@@ -17,7 +17,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 注入 CSS (针对新导航栏微调)
+# 注入 CSS (增强左侧输入框可见性)
 st.markdown("""
 <style>
     /* 全局深色背景 */
@@ -26,35 +26,42 @@ st.markdown("""
         color: #FAFAFA;
     }
     
-    /* 隐藏 Streamlit 默认的顶部红条和菜单 */
+    /* 隐藏顶部红条 */
     header {visibility: hidden;}
     
-    /* 输入框优化 */
-    .stTextArea textarea, .stTextInput input, .stSelectbox div[data-baseweb="select"] {
-        background-color: #21262D !important;
-        color: #FFFFFF !important;
-        border: 1px solid #30363D;
+    /* 左侧侧边栏背景 */
+    section[data-testid="stSidebar"] {
+        background-color: #161B22;
+        border-right: 1px solid #30363D;
     }
     
-    /* 按钮优化 */
+    /* 核心修改：输入框背景加深，边框变亮，防止“看不见” */
+    .stTextArea textarea, .stTextInput input, .stSelectbox div[data-baseweb="select"] {
+        background-color: #0d1117 !important; 
+        color: #e6edf3 !important;
+        border: 1px solid #7d8590 !important; /* 亮灰色边框 */
+        border-radius: 6px;
+    }
+    
+    /* 按钮优化：高亮蓝紫渐变 */
     .stButton>button {
-        background: linear-gradient(90deg, #4F46E5 0%, #7C3AED 100%);
+        background: linear-gradient(90deg, #238636 0%, #2ea043 100%); /* 类似 GitHub 的绿色按钮，更显眼 */
         color: white;
         border: none;
-        border-radius: 8px;
+        border-radius: 6px;
         height: 3em;
         font-weight: 600;
-        transition: all 0.3s ease;
+        transition: all 0.2s ease;
     }
     .stButton>button:hover {
-        box-shadow: 0 4px 15px rgba(124, 58, 237, 0.4);
-        transform: translateY(-2px);
+        transform: scale(1.02);
+        box-shadow: 0 4px 12px rgba(46, 160, 67, 0.4);
     }
-    
-    /* 标题优化 */
-    h1, h2, h3 {
-        color: #FFFFFF !important;
-        font-family: 'PingFang SC', sans-serif;
+
+    /* 状态提示框优化 */
+    div[data-baseweb="notification"] {
+        border-radius: 8px;
+        font-weight: bold;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -119,18 +126,18 @@ def robust_api_search(payload, model_name, api_key):
     return {"error": "请求超时"}
 
 # ==========================================
-# 3. 侧边栏 (⭐ UI 核心升级：Option Menu)
+# 3. 侧边栏 (⭐ 找回“对话框”感觉)
 # ==========================================
 
-# 侧边栏顶部品牌区
+# 顶部品牌
 st.sidebar.markdown("### 🦁 **外贸数字指挥官**")
 st.sidebar.caption(f"🚀 引擎: {valid_model_name.split('/')[-1]} | 🟢 在线")
-st.sidebar.write("") # 占位符
+st.sidebar.write("") 
 
-# ⭐ 这里使用了新的 option_menu 组件，替换了原来的 radio
+# 导航菜单
 with st.sidebar:
     selected = option_menu(
-        "系统导航",  # 菜单标题 (可留空)
+        "系统导航",
         [
             "总控仪表盘", 
             "全域社媒营销", 
@@ -140,52 +147,51 @@ with st.sidebar:
             "谈判策略军师", 
             "智能技术支持"
         ],
-        icons=[
-            "speedometer2", # 仪表盘图标
-            "phone",        # 社媒图标
-            "envelope",     # 邮件图标
-            "globe",        # 地球图标
-            "person-check", # 背调图标
-            "chat-dots",    # 谈判图标
-            "tools"         # 技术支持图标
-        ],
-        menu_icon="cast",   # 菜单左上角图标
+        icons=["speedometer2", "phone", "envelope", "globe", "person-check", "chat-dots", "tools"],
+        menu_icon="cast",
         default_index=0,
         styles={
             "container": {"padding": "0!important", "background-color": "#161B22"},
-            "icon": {"color": "#4F46E5", "font-size": "18px"}, 
-            "nav-link": {"font-size": "15px", "text-align": "left", "margin":"0px", "--hover-color": "#21262D"},
-            "nav-link-selected": {"background-color": "#4F46E5"},
+            "icon": {"color": "#8b949e", "font-size": "16px"}, 
+            "nav-link": {"font-size": "14px", "text-align": "left", "margin":"0px", "color": "#e6edf3"},
+            "nav-link-selected": {"background-color": "#238636", "color": "white"}, # 选中绿色高亮
         }
     )
 
-# 知识库状态区 (保持在下方)
 st.sidebar.markdown("---")
+
+# ⭐ 修复点：找回显眼的状态框 (Success/Info Box)
 current_mem = load_memory()
 mem_len = len(current_mem)
-kb_status = "🟢 已激活" if mem_len > 50 else "⚪ 空闲中"
-st.sidebar.metric("🧠 企业知识库", kb_status, f"{mem_len} 字符")
 
-with st.sidebar.expander("📂 知识库管理"):
-    new_txt = st.text_area("粘贴资料:", height=100)
-    if st.button("💾 保存文本"): 
+if mem_len > 50:
+    st.sidebar.success(f"🧠 知识库已激活\n\n包含 {mem_len} 字符")
+else:
+    st.sidebar.info("🧠 知识库空闲中\n\n请在下方投喂资料")
+
+# ⭐ 修复点：默认展开输入区域，让输入框直接可见
+with st.sidebar.expander("📥 投喂/管理数据", expanded=True):
+    new_txt = st.text_area("粘贴文本资料:", height=100, placeholder="在此粘贴产品参数...")
+    if st.button("💾 保存到记忆"): 
         if new_txt: save_memory(new_txt); st.rerun()
     
-    up_file = st.file_uploader("上传 PDF:", type=['pdf'])
+    st.write("---")
+    up_file = st.file_uploader("或上传 PDF:", type=['pdf'])
     if up_file:
         try:
             reader = pypdf.PdfReader(up_file)
             txt = "".join([p.extract_text() or "" for p in reader.pages])
             if len(txt)>50: save_memory(txt); st.success("已保存"); time.sleep(1); st.rerun()
-            else: st.error("PDF 无文字内容")
+            else: st.error("PDF 无文字")
         except: st.error("读取失败")
 
+    st.write("---")
     if st.button("🗑️ 清空记忆"): clear_memory(); st.rerun()
 
 KB_INJECTION = f"[内部知识库数据]: {current_mem}" if mem_len > 50 else ""
 
 # ==========================================
-# 4. 主界面逻辑 (映射新菜单名称)
+# 4. 主界面逻辑
 # ==========================================
 
 # --- 🏠 仪表盘 ---
@@ -193,26 +199,29 @@ if selected == "总控仪表盘":
     st.title("🚀 指挥官总控台")
     st.markdown("欢迎回来，这里是您的全球业务增长引擎。")
     
-    c1, c2, c3 = st.columns(3)
-    c1.metric("目标市场", "全球 / B2B", "Active")
-    c2.metric("社媒引擎", "已就绪", "New")
-    c3.metric("知识资产", f"{mem_len} 字符", "Loaded")
+    # 指标卡片
+    col1, col2, col3 = st.columns(3)
+    col1.metric("目标市场", "Global / B2B", "Active")
+    col2.metric("社媒引擎", "Ready", "New")
+    col3.metric("知识资产", f"{mem_len} Char", "Loaded")
     
     st.markdown("---")
-    col1, col2 = st.columns(2)
-    with col1:
-        st.info("📱 **全域社媒营销**\n\n一键生成 LinkedIn 深度文、TikTok 脚本及开发信。")
-        st.success("🌐 **全球情报深挖**\n\n实时连接 Google 搜索，挖掘隐秘信息。")
-    with col2:
-        st.warning("⛔ **谈判策略军师**\n\n哈佛谈判专家视角，提供回击话术。")
-        st.error("🛠️ **智能技术支持**\n\n基于 PDF 手册自动回答技术问题。")
+    
+    # 功能入口卡片
+    c1, c2 = st.columns(2)
+    with c1:
+        st.info("📱 **全域社媒营销**\n\n一键生成多平台爆款内容。")
+        st.success("🌐 **全球情报深挖**\n\n实时连接 Google 搜索。")
+    with c2:
+        st.warning("⛔ **谈判策略军师**\n\n针对性回击客户压价。")
+        st.error("🛠️ **智能技术支持**\n\n基于知识库回答技术问题。")
 
 # --- 📱 社媒营销 ---
 elif selected == "全域社媒营销":
     st.title("📱 全域社媒营销引擎")
     col_input, col_opt = st.columns([3, 1])
     with col_input:
-        campaign_topic = st.text_input("📢 营销主题 / 产品焦点:", placeholder="例如：新款 X500 发布")
+        campaign_topic = st.text_input("📢 营销主题 / 产品焦点:", placeholder="例如：新款环保材料发布")
     with col_opt:
         platform = st.selectbox("发布平台:", ["👔 LinkedIn (专业领袖)", "🎥 TikTok/IG (视频脚本)", "🤝 Cold DM (私信)"])
     
@@ -230,7 +239,7 @@ elif selected == "深度询盘分析":
     c1, c2 = st.columns([2, 1])
     with c1: user_input = st.text_area("粘贴客户邮件:", height=300)
     with c2: 
-        st.info("AI 分析意图并生成回复。")
+        st.caption("AI 分析意图并生成回复。")
         if st.button("🚀 开始分析"):
             if user_input:
                 with st.spinner('分析中...'):
@@ -277,7 +286,7 @@ elif selected == "谈判策略军师":
 # --- 🛠️ 售后 ---
 elif selected == "智能技术支持":
     st.title("🛠️ 智能技术支持")
-    if mem_len < 50: st.warning("请先上传产品手册 PDF。")
+    if mem_len < 50: st.warning("请先在左侧上传 PDF 手册。")
     else: st.success("✅ 知识库已就绪，请提问。")
     q = st.chat_input("输入关于产品的问题...")
     if q:
