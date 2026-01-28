@@ -1,291 +1,72 @@
 import streamlit as st
 import google.generativeai as genai
-import requests
-import json
-import time
-import pypdf
-import os
-from streamlit_option_menu import option_menu
+import pandas as pd
+from PIL import Image
 
-# ==========================================
-# 1. 核心配置与 SaaS 级 UI 引擎
-# ==========================================
-st.set_page_config(
-    page_title="TradeNexus AI | 外贸销售专家", 
-    page_icon="🦁", 
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
-# 注入 CSS (强制左侧导航和深色模式)
-st.markdown("""
-<style>
-    /* 1. 全局深色背景 */
-    .stApp {
-        background-color: #010409;
-        color: #e6edf3;
-    }
-    
-    /* 2. 侧边栏背景 */
-    section[data-testid="stSidebar"] {
-        background-color: #0d1117;
-        border-right: 1px solid #30363d;
-    }
-    
-    /* 3. 输入框可见性修复 */
-    .stTextInput input, .stTextArea textarea, .stSelectbox div[data-baseweb="select"] {
-        background-color: #161b22 !important;
-        color: #ffffff !important;
-        border: 1px solid #30363d !important;
-        border-radius: 6px;
-    }
-    .stTextInput input:focus, .stTextArea textarea:focus {
-        border-color: #2962ff !important;
-        box-shadow: 0 0 0 1px #2962ff !important;
-    }
-    
-    /* 4. 按钮样式 */
-    .stButton>button {
-        background-color: #238636;
-        color: white;
-        border: 1px solid rgba(240,246,252,0.1);
-        border-radius: 6px;
-        height: 40px;
-        width: 100%;
-        font-weight: 600;
-    }
-    .stButton>button:hover {
-        background-color: #2ea043;
-    }
-
-    /* 5. 隐藏顶部红条 */
-    header {visibility: hidden;}
-    
-    /* 6. 结果卡片 */
-    .result-box {
-        background-color: #161b22;
-        border: 1px solid #30363d;
-        border-radius: 8px;
-        padding: 20px;
-        margin-top: 20px;
-        color: #e6edf3;
-    }
-    
-    /* 7. 导航栏样式微调 */
-    .nav-link {
-        font-weight: 500 !important;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-MEMORY_FILE = "b2b_kb_memory.json"
-
-try:
-    api_key = st.secrets["GOOGLE_API_KEY"]
-    genai.configure(api_key=api_key)
-except Exception:
-    st.error("⚠️ API Key 未配置")
-    st.stop()
-
-# ==========================================
-# 2. 逻辑内核
-# ==========================================
-def load_memory():
-    if os.path.exists(MEMORY_FILE):
-        try:
-            with open(MEMORY_FILE, "r", encoding="utf-8") as f:
-                return json.load(f).get("text", "")
-        except: return ""
-    return ""
-
-def save_memory(new_text):
-    current = load_memory()
-    if new_text.strip() in current: return False
-    updated = current + "\n" + new_text
-    with open(MEMORY_FILE, "w", encoding="utf-8") as f:
-        json.dump({"text": updated}, f, ensure_ascii=False)
-    return True
-
-def clear_memory():
-    if os.path.exists(MEMORY_FILE): os.remove(MEMORY_FILE)
-
-@st.cache_resource
-def get_best_model(): return "models/gemini-2.5-flash"
-valid_model_name = get_best_model()
-
-def robust_generate(prompt, model_name):
-    model = genai.GenerativeModel(model_name)
-    max_retries = 3
-    for i in range(max_retries):
-        try:
-            response = model.generate_content(prompt)
-            return response.text
-        except Exception as e:
-            if "429" in str(e): time.sleep((i+1)*5); continue
-            else: time.sleep(2); continue
-    return "⚠️ 网络繁忙，请重试。"
-
-def robust_api_search(payload, model_name, api_key):
-    url = f"https://generativelanguage.googleapis.com/v1beta/{model_name}:generateContent?key={api_key}"
-    headers = {'Content-Type': 'application/json'}
-    for i in range(3):
-        try:
-            res = requests.post(url, headers=headers, data=json.dumps(payload), timeout=60)
-            if res.status_code == 200: return res.json()
-            elif res.status_code == 429: time.sleep(5); continue
-            else: return {"error": f"Error {res.status_code}"}
-        except Exception as e: return {"error": str(e)}
-    return {"error": "Timeout"}
-
-# ==========================================
-# 3. 侧边栏 (⭐ 模块化导航)
-# ==========================================
+# 1. 页面配置与 API 初始化
+st.set_page_config(page_title="B2B 外贸全能助手", layout="wide")
 
 with st.sidebar:
-    st.markdown("### 🦁 **TradeNexus AI**")
-    st.caption("B2B 外贸销售专家 | 工业级引擎")
-    st.write("") 
+    st.title("🛠️ 功能面板")
+    api_key = st.text_input("输入 Gemini API Key", type="password")
+    # 功能导航
+    menu = st.radio("选择业务模块", ["客户开发", "财务审计", "多媒体分析 (图文/视频)", "数据库模拟"])
+    
+    if api_key:
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-1.5-pro')
 
-    # ⭐ 导航模块：方块式导航，无圆点
-    selected = option_menu(
-        menu_title=None, 
-        options=[
-            "综合面板 / 助手", 
-            "开发信生成", 
-            "客户背景调查", 
-            "谈判策略", 
-            "风控与合规", 
-            "社媒内容引擎", 
-            "订单复盘"
-        ],
-        icons=["grid-fill", "envelope-fill", "search", "chat-quote-fill", "shield-check", "share-fill", "clipboard-data"], 
-        default_index=0,
-        styles={
-            "container": {"padding": "0!important", "background-color": "transparent"},
-            "icon": {"color": "#8b949e", "font-size": "14px"}, 
-            "nav-link": {
-                "font-size": "14px", 
-                "text-align": "left", 
-                "margin": "6px 0px", 
-                "padding": "10px 15px",
-                "background-color": "#161b22",
-                "border": "1px solid #30363d",
-                "border-radius": "6px",
-                "color": "#c9d1d9"
-            },
-            "nav-link-selected": {
-                "background-color": "#1f6feb", 
-                "color": "white",
-                "border": "1px solid #1f6feb"
-            },
-        }
-    )
-    
-    st.markdown("---")
-    
-    # 知识库区域
-    st.markdown("**🧠 知识库状态**")
-    current_mem = load_memory()
-    mem_len = len(current_mem)
-    
-    if mem_len > 50:
-        st.success(f"🟢 已加载 ({mem_len} 字符)")
-    else:
-        st.info("⚪ 暂无数据")
+# 2. 各模块逻辑实现
+if not api_key:
+    st.warning("请先在侧边栏输入 API Key。")
+else:
+    # --- 模块 1：客户开发 ---
+    if menu == "客户开发":
+        st.header("🌍 全球客户开发 (开发信润色/询盘模拟)")
+        target_role = st.selectbox("目标角色", ["采购经理", "CEO", "技术主管"])
+        draft_text = st.text_area("输入你的开发信草稿或客户信息")
+        if st.button("生成高转化率回复"):
+            response = model.generate_content(f"作为外贸专家，请针对{target_role}优化以下内容，使其更具吸引力且专业：\n{draft_text}")
+            st.write(response.text)
 
-    with st.expander("📂 知识库管理", expanded=True):
-        new_txt = st.text_area("粘贴文本:", height=80, placeholder="粘贴公司介绍...")
-        if st.button("💾 保存"): 
-            if new_txt: save_memory(new_txt); st.rerun()
+    # --- 模块 2：财务审计 ---
+    elif menu == "财务审计":
+        st.header("📊 财务审计与成本分析")
+        uploaded_file = st.file_uploader("上传成本/利润 Excel 或 CSV", type=['csv', 'xlsx'])
+        if uploaded_file:
+            df = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('csv') else pd.read_excel(uploaded_file)
+            st.dataframe(df)
+            st.info("AI 正在分析异常数据或利润点...")
+            # 将表格数据转为文本给 AI 审计
+            response = model.generate_content(f"请审计以下财务数据并给出优化建议：\n{df.to_string()}")
+            st.write(response.text)
+
+    # --- 模块 3：多媒体分析 ---
+    elif menu == "多媒体分析 (图文/视频)":
+        st.header("📸 产品图文/视频深度分析")
+        media_file = st.file_uploader("上传产品图片或短视频", type=['png', 'jpg', 'jpeg', 'mp4'])
+        user_query = st.text_input("你想让 AI 观察什么？", "请描述该产品的卖点和潜在缺陷")
         
-        up_file = st.file_uploader("上传 PDF:", type=['pdf'])
-        if up_file:
-            try:
-                reader = pypdf.PdfReader(up_file)
-                txt = "".join([p.extract_text() or "" for p in reader.pages])
-                if len(txt)>50: save_memory(txt); st.success("已保存"); time.sleep(1); st.rerun()
-            except: st.error("读取失败")
+        if media_file:
+            if media_file.type.startswith('image'):
+                img = Image.open(media_file)
+                st.image(img, caption="待分析图片", width=400)
+                if st.button("开始图片分析"):
+                    response = model.generate_content([user_query, img])
+                    st.write(response.text)
+            elif media_file.type.startswith('video'):
+                st.video(media_file)
+                st.info("视频分析由于 API 限制，通常需要先上传至 Google 云端或使用特定的 File API 处理。这里建议先验证图片功能。")
 
-    if st.button("🗑️ 清空知识库"): clear_memory(); st.rerun()
-
-KB_INJECTION = f"[内部知识库数据]: {current_mem}" if mem_len > 50 else ""
-
-# ==========================================
-# 4. 主界面逻辑 (全功能复刻)
-# ==========================================
-
-if selected == "综合面板 / 助手":
-    st.title("🚀 综合指挥中心")
-    st.markdown("您的 AI 业务副驾驶。请直接下达指令或从下方快捷开始。")
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        if st.button("💡 欧洲市场趋势分析"): st.session_state.q = "分析 2026 欧洲机械市场的最新趋势与机会点"
-    with col2:
-        if st.button("💡 润色公司英文介绍"): st.session_state.q = "帮我润色这段公司介绍，使其更地道：[请粘贴文本]"
-    with col3:
-        if st.button("💡 海运费/物流咨询"): st.session_state.q = "当前红海局势对中国出口欧洲的海运费有何影响？"
-    st.markdown("---")
-    if 'q' not in st.session_state: st.session_state.q = ""
-    user_input = st.chat_input("输入指令...")
-    if st.session_state.q: user_input = st.session_state.q; st.session_state.q = ""
-    if user_input:
-        with st.chat_message("user"): st.write(user_input)
-        with st.chat_message("assistant"):
-            with st.spinner('Thinking...'):
-                res = robust_generate(f"{KB_INJECTION}\nUser: {user_input}", valid_model_name)
-                st.markdown(res)
-
-elif selected == "开发信生成":
-    st.title("📧 客户开发 (Outreach)")
-    c1, c2 = st.columns([1, 1])
-    with c1: target = st.text_input("目标客户:", placeholder="例：德国汽车配件采购商")
-    with c2: pain = st.text_input("客户痛点:", placeholder="例：交期太慢")
-    if st.button("🚀 生成开发信", use_container_width=True):
-        if target:
-            with st.spinner('撰写中...'):
-                res = robust_generate(f"{KB_INJECTION}\n写一封B2B开发信。目标: {target}。痛点: {pain}。", valid_model_name)
-                st.markdown(f'<div class="result-box">{res}</div>', unsafe_allow_html=True)
-
-elif selected == "客户背景调查":
-    st.title("🕵️‍♂️ 客户背调 (Intelligence)")
-    query = st.text_input("公司名或网址:")
-    if st.button("🔍 深度扫描", use_container_width=True):
-        if query:
-            with st.spinner('检索中...'):
-                prompt = f"Role: Analyst. Search: '{query}'. Report: 1.Identity 2.Decision Makers 3.Competitors."
-                data = robust_api_search({"contents":[{"parts":[{"text":prompt}]}],"tools":[{"google_search":{}}]}, valid_model_name, api_key)
-                if "error" in data: st.error(data['error'])
-                else:
-                    try: st.markdown(f'<div class="result-box">{data["candidates"][0]["content"]["parts"][0]["text"]}</div>', unsafe_allow_html=True)
-                    except: st.error("未找到信息")
-
-elif selected == "谈判策略":
-    st.title("⚖️ 谈判策略军师")
-    obj = st.text_input("客户异议:", placeholder="Price is too high")
-    if st.button("💣 生成回击话术", use_container_width=True):
-        if obj:
-            with st.spinner('思考中...'):
-                res = robust_generate(f"{KB_INJECTION}\n谈判专家。客户说: {obj}。提供3种回击策略。", valid_model_name)
-                st.markdown(f'<div class="result-box">{res}</div>', unsafe_allow_html=True)
-
-elif selected == "风控与合规":
-    st.title("🛡️ 风控与合规")
-    st.info("此模块用于查询海关数据及信用黑名单。")
-    risk_q = st.text_input("输入公司名:")
-    if st.button("🔍 扫描风险", use_container_width=True):
-        if risk_q: st.success(f"✅ 未发现 '{risk_q}' 在制裁名单中。信用评分：AA。")
-
-elif selected == "社媒内容引擎":
-    st.title("📱 社媒内容引擎")
-    topic = st.text_input("营销主题:")
-    plat = st.selectbox("平台:", ["LinkedIn", "TikTok", "Cold DM"])
-    if st.button("✨ 生成素材", use_container_width=True):
-        if topic:
-            with st.spinner('创作中...'):
-                res = robust_generate(f"{KB_INJECTION}\n社媒专家。主题:{topic}。平台:{plat}。", valid_model_name)
-                st.markdown(f'<div class="result-box">{res}</div>', unsafe_allow_html=True)
-
-elif selected == "订单复盘":
-    st.title("📊 订单复盘")
-    st.info("上传 Excel/CSV 分析利润率。")
-    st.file_uploader("上传表格:", type=['csv', 'xlsx'])
+    # --- 模块 4：数据库模拟 ---
+    elif menu == "数据库模拟":
+        st.header("🗄️ 业务数据库简易管理")
+        st.write("此处可用于记录客户档案或订单状态（当前为 Session 存储演示）")
+        if 'db' not in st.session_state:
+            st.session_state.db = []
+        
+        new_entry = st.text_input("添加新记录 (如：澳洲客户A - 订单号123)")
+        if st.button("存入数据库"):
+            st.session_state.db.append(new_entry)
+            st.success("记录已保存")
+        st.write("当前记录：", st.session_state.db)
