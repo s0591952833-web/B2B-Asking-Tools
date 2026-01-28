@@ -1,5 +1,4 @@
 streamlit
 google-generativeai
-requests
-pypdf
-streamlit-option-menu
+pandas
+pillow
