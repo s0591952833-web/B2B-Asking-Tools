@@ -8,7 +8,7 @@ st.set_page_config(page_title="B2B 外贸全能助手", layout="wide")
 
 with st.sidebar:
     st.title("🛠️ 功能面板")
-    api_key = st.text_input("输入 Gemini API Key", type="password")
+  api_key = st.secrets["GEMINI_API_KEY"]
     # 功能导航
     menu = st.radio("选择业务模块", ["客户开发", "财务审计", "多媒体分析 (图文/视频)", "数据库模拟"])
     
