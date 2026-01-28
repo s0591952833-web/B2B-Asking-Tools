@@ -1,91 +1,63 @@
 import streamlit as st
 import google.generativeai as genai
-import pandas as pd
 from PIL import Image
 
-# 1. 页面基本配置
-st.set_page_config(page_title="B2B 全能 AI 助手", layout="wide")
+# 1. 基础配置
+st.set_page_config(page_title="B2B 全能助手 (稳定版)", layout="wide")
 
-# 2. 安全读取 API Key
+# 2. 读取 Secrets 里的 API Key
 try:
-    # 请确保 Streamlit Secrets 里的键名是 GEMINI_API_KEY
+    # 确保在 Streamlit 控制台配置的键名为 GEMINI_API_KEY
     api_key = st.secrets["GEMINI_API_KEY"]
     genai.configure(api_key=api_key)
 except Exception:
-    st.sidebar.error("❌ 未找到 Secrets 配置，请在 Streamlit 后台设置。")
+    st.sidebar.error("❌ 没找到 API Key。请在 Streamlit Settings -> Secrets 填入 GEMINI_API_KEY")
     api_key = None
 
-# 3. 侧边栏导航
+# 3. 侧边栏
 with st.sidebar:
-    st.title("🛠️ 业务功能菜单")
-    # 切换为最稳健的模型 ID
-    model_choice = st.selectbox(
-        "选择 AI 模型", 
-        ["gemini-1.5-flash", "gemini-1.5-pro"],
-        index=0,
-        help="1.5-flash 响应最快，1.5-pro 适合深度分析"
+    st.title("🛠️ 功能面板")
+    # 按照兼容性排序：从最稳到最新
+    model_id = st.selectbox(
+        "选择模型", 
+        ["gemini-pro", "gemini-1.5-flash", "gemini-1.5-pro"],
+        help="如果报错，请尝试切换到 gemini-pro"
     )
-    
-    menu = st.radio(
-        "选择工作模块", 
-        ["🌍 客户开发", "📊 财务审计", "📸 多媒体分析", "🗄️ 数据库模拟"]
-    )
+    menu = st.radio("功能模块", ["🌍 客户开发", "📸 视频/图片分析"])
     st.divider()
-    st.info("目标：学亚马逊并拿补贴")
+    st.info("宁波外贸实战 | 目标 9 万补贴")
 
 # 4. 主逻辑
-if not api_key:
-    st.warning("⚠️ 请先配置 API Key。")
-else:
-    model = genai.GenerativeModel(model_choice)
+if api_key:
+    # 这里的 try 捕获模型初始化的错误
+    try:
+        model = genai.GenerativeModel(model_id)
 
-    # --- 模块 1：客户开发 ---
-    if menu == "🌍 客户开发":
-        st.header("🌍 全球客户开发")
-        task = st.selectbox("任务", ["开发信润色", "德国市场分析", "询盘模拟"])
-        context = st.text_area("输入背景信息", placeholder="例如：分析德国市场业务")
-        if st.button("🚀 开始生成"):
-            with st.spinner("AI 正在响应..."):
-                try:
-                    response = model.generate_content(f"请作为外贸专家处理：{task}\n内容：{context}")
-                    st.success("生成成功：")
+        if menu == "🌍 客户开发":
+            st.header("🌍 客户开发与市场分析")
+            user_text = st.text_area("输入内容 (例如：分析德国跨境电商市场)")
+            if st.button("🚀 开始生成"):
+                with st.spinner("AI 正在思考..."):
+                    # 针对文字任务的调用
+                    response = model.generate_content(user_text)
+                    st.success("分析结果：")
                     st.write(response.text)
-                except Exception as e:
-                    st.error(f"调用失败：{str(e)}")
 
-    # --- 模块 2：财务审计 ---
-    elif menu == "📊 财务审计":
-        st.header("📊 成本利润审计")
-        uploaded_file = st.file_uploader("上传 Excel/CSV", type=['csv', 'xlsx'])
-        if uploaded_file:
-            df = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('csv') else pd.read_excel(uploaded_file)
-            st.dataframe(df)
-            if st.button("🔍 智能分析"):
-                # 针对你学习 Excel 成本利润表的需求
-                response = model.generate_content(f"请审计此财务表并给优化建议：\n{df.to_string()}")
-                st.write(response.text)
-
-    # --- 模块 3：多媒体分析 ---
-    elif menu == "📸 多媒体分析":
-        st.header("📸 产品图文/视频分析")
-        media = st.file_uploader("上传图片或视频", type=['png', 'jpg', 'jpeg', 'mp4'])
-        query = st.text_input("你想问什么？", value="请分析这个产品的卖点")
-        if media and st.button("⚡ 开始分析"):
-            with st.spinner("多模态模型正在解析..."):
-                if media.type.startswith('image'):
-                    img = Image.open(media)
-                    st.image(img, width=400)
-                    response = model.generate_content([query, img])
+        elif menu == "📸 视频/图片分析":
+            st.header("📸 多模态素材分析")
+            st.write("明天拍完视频可以传上来提炼卖点")
+            
+            uploaded_file = st.file_uploader("上传产品图", type=["jpg", "jpeg", "png"])
+            prompt = st.text_input("想问 AI 什么？", value="请总结该产品的 3 个核心卖点")
+            
+            if uploaded_file and st.button("🔍 开始视觉分析"):
+                img = Image.open(uploaded_file)
+                st.image(img, width=400)
+                # 针对多模态的调用：第一个参数是 prompt，第二个是图片对象
+                with st.spinner("解析图片中..."):
+                    response = model.generate_content([prompt, img])
                     st.write(response.text)
-                else:
-                    st.video(media)
-                    st.warning("视频深度分析建议先测试图片模式。")
 
-    # --- 模块 4：数据库模拟 ---
-    elif menu == "🗄️ 数据库模拟":
-        st.header("🗄️ 业务记录")
-        if 'db' not in st.session_state: st.session_state.db = []
-        entry = st.text_input("录入新信息")
-        if st.button("💾 保存"):
-            st.session_state.db.append(entry)
-        st.write("历史记录：", st.session_state.db)
+    except Exception as e:
+        st.error(f"⚠️ 发生错误: {str(e)}")
+        st.info("提示：如果报 404，请确认你的 API Key 已经在 Google Cloud 中启用了 'Generative Language API'")
